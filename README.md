@@ -172,6 +172,121 @@ python scripts/mcp_server.py
 
 результат будет сохранен рядом с исходником в файл вида `report_gost.docx`.
 
+### `refresh_meganorm_cache`
+
+обновляет локальный кэш html-источника meganorm.
+
+пример ответа:
+
+```json
+{
+  "kind": "refresh",
+  "cache": {
+    "state": "refreshed",
+    "fetched_at": "2026-05-07T10:30:00+00:00"
+  },
+  "pages_refreshed": 3
+}
+```
+
+### `search_meganorm_catalog`
+
+ищет категории и документы по названию, с опорой на кэш и живой источник.
+
+пример ответа:
+
+```json
+{
+  "kind": "search",
+  "cache": {
+    "state": "hit"
+  },
+  "categories": [
+    {
+      "title": "ГОСТ (Государственный стандарт)",
+      "origin": "cache"
+    }
+  ],
+  "documents": [
+    {
+      "title": "ГОСТ 7.32-2017 ...",
+      "origin": "source"
+    }
+  ]
+}
+```
+
+### `get_meganorm_topics`
+
+возвращает текущие темы и ссылки по каталогу или по выбранной категории.
+
+пример ответа:
+
+```json
+{
+  "kind": "current-topics",
+  "scope": "catalog",
+  "topics": [
+    {
+      "title": "ГОСТ (Государственный стандарт)",
+      "origin": "cache"
+    },
+    {
+      "title": "ГОСТ Р (Государственный стандарт)",
+      "origin": "source"
+    }
+  ]
+}
+```
+
+### `find_current_gost`
+
+ищет только актуальные `ГОСТ` и `ГОСТ Р` записи, с более точным совпадением по номеру.
+
+пример запроса:
+
+```json
+{
+  "query": "ГОСТ 7.32-2017",
+  "max_pages": 10,
+  "limit": 5
+}
+```
+
+пример ответа:
+
+```json
+{
+  "kind": "current-gost-search",
+  "documents": [
+    {
+      "title": "\"ГОСТ 7.32-2017 ...\"",
+      "origin": "source",
+      "match": {
+        "exact": true,
+        "number_hint": true,
+        "partial": 3
+      }
+    }
+  ]
+}
+```
+
+## meganorm
+
+источник берется отсюда:
+
+- [meganorm актуализированная база](https://meganorm.ru/mega_doc/norm/norm.html)
+
+в выводе всегда указывай происхождение записи:
+
+- `origin=cache` значит запись взята из локального кэша
+- `origin=source` значит запись получена живьем из нормативного html
+
+это касается и категорий, и документов, и тем.
+
+при очистке html-источника из вывода вырезаются служебные блоки вроде `script`, `style`, `noscript`, `footer`, `nav` и `aside`, а также шумные wrapper-элементы, если они встречаются в dom.
+
 ## разработчики
 
 - `@glutinosa`

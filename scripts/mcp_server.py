@@ -5,6 +5,7 @@ import sys
 from typing import Any
 
 from gost_standardizer import inspect_document, list_presets, standardize_document
+from meganorm_catalog import find_current_gost, get_current_topics, refresh_catalog, search_catalog
 
 
 SERVER_NAME = "gost-standardizer"
@@ -75,6 +76,122 @@ TOOLS = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "refresh_meganorm_cache",
+        "description": "Refresh the local meganorm HTML cache from the live нормативный source.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "description": "Optional category name or fragment to refresh selectively.",
+                },
+                "max_pages": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "default": 5,
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "search_meganorm_catalog",
+        "description": "Search cached and live meganorm categories/documents by category name or document title.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search text for categories or document titles.",
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Optional category filter.",
+                },
+                "max_pages": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "default": 5,
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 25,
+                },
+                "refresh": {
+                    "type": "boolean",
+                    "default": False,
+                },
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "get_meganorm_topics",
+        "description": "Get current categories or document topics from the live нормативный source, with cache/source origin labels.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "description": "Optional category name or fragment.",
+                },
+                "page": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 50,
+                    "default": 0,
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 25,
+                },
+                "refresh": {
+                    "type": "boolean",
+                    "default": False,
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "find_current_gost",
+        "description": "Find current GOST and GOST R documents only, with exact-number matching over the актуализированная база.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "GOST number or title fragment, for example '7.32-2017' or 'ГОСТ 2.105'.",
+                },
+                "max_pages": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 10,
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 25,
+                },
+                "refresh": {
+                    "type": "boolean",
+                    "default": False,
+                },
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -138,6 +255,41 @@ def _handle_tools_call(arguments: dict[str, Any]) -> dict[str, Any]:
             preset_name=params.get("preset"),
             overwrite=bool(params.get("overwrite", False)),
             aggressive=bool(params.get("aggressive", False)),
+        )
+        return _result(json.dumps(report, ensure_ascii=False, indent=2))
+
+    if name == "refresh_meganorm_cache":
+        report = refresh_catalog(
+            category=params.get("category"),
+            max_pages=int(params.get("max_pages", 5)),
+        )
+        return _result(json.dumps(report, ensure_ascii=False, indent=2))
+
+    if name == "search_meganorm_catalog":
+        report = search_catalog(
+            query=params["query"],
+            category=params.get("category"),
+            max_pages=int(params.get("max_pages", 5)),
+            limit=int(params.get("limit", 25)),
+            refresh=bool(params.get("refresh", False)),
+        )
+        return _result(json.dumps(report, ensure_ascii=False, indent=2))
+
+    if name == "get_meganorm_topics":
+        report = get_current_topics(
+            category=params.get("category"),
+            page=int(params.get("page", 0)),
+            limit=int(params.get("limit", 25)),
+            refresh=bool(params.get("refresh", False)),
+        )
+        return _result(json.dumps(report, ensure_ascii=False, indent=2))
+
+    if name == "find_current_gost":
+        report = find_current_gost(
+            query=params["query"],
+            max_pages=int(params.get("max_pages", 10)),
+            limit=int(params.get("limit", 25)),
+            refresh=bool(params.get("refresh", False)),
         )
         return _result(json.dumps(report, ensure_ascii=False, indent=2))
 
