@@ -1,0 +1,43 @@
+{
+  "name": "gost-standardizer",
+  "version": "0.1.0",
+  "description": "Local MCP plugin for inspecting and standardizing DOCX documents to GOST-style formatting.",
+  "author": {
+    "name": "@glutinosa",
+    "email": "glutinosa@example.com",
+    "url": "https://github.com/glutinosa"
+  },
+  "homepage": "https://github.com/glutinosa/gost-standardizer",
+  "repository": "https://github.com/glutinosa/gost-standardizer",
+  "license": "MIT",
+  "keywords": [
+    "gost",
+    "docx",
+    "word",
+    "mcp",
+    "standardizer"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "GOST Standardizer",
+    "shortDescription": "Turn messy Word files into GOST-style documents.",
+    "longDescription": "A local MCP plugin that inspects DOCX files, applies Russian GOST-inspired layout rules, and exports a cleaned-up .docx with consistent typography and page setup.",
+    "developerName": "@glutinosa",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/glutinosa/gost-standardizer",
+    "privacyPolicyURL": "https://github.com/glutinosa/gost-standardizer/blob/main/privacy.md",
+    "termsOfServiceURL": "https://github.com/glutinosa/gost-standardizer/blob/main/terms.md",
+    "defaultPrompt": [
+      "Standardize this Word document to GOST style",
+      "Inspect this DOCX for formatting problems"
+    ],
+    "brandColor": "#1E5B52",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/logo.svg",
+    "screenshots": []
+  }
+}

@@ -1,0 +1,9 @@
+._tmp/
+__pycache__/
+*.pyc
+*.log
+.venv/
+dist/
+build/
+*.docx
+!plugins/gost-standardizer/assets/*.svg

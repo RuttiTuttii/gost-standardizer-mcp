@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "gost-standardizer": {
+      "command": "C:\\Users\\eegor\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "args": [
+        "scripts\\mcp_server.py"
+      ],
+      "cwd": ".",
+      "env": {
+        "PYTHONUTF8": "1"
+      }
+    }
+  }
+}
