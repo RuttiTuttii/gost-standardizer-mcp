@@ -1,7 +1,7 @@
 {
   "name": "gost-standardizer",
-  "version": "0.1.0",
-  "description": "Local MCP plugin for inspecting and standardizing DOCX documents to GOST-style formatting.",
+  "version": "0.2.0",
+  "description": "Local MCP plugin for inspecting, validating, and standardizing Word documents with GOST-style profiles.",
   "author": {
     "name": "@glutinosa",
     "email": "glutinosa@example.com",
@@ -33,7 +33,8 @@
     "termsOfServiceURL": "https://github.com/glutinosa/gost-standardizer/blob/main/terms.md",
     "defaultPrompt": [
       "Standardize this Word document to GOST style",
-      "Inspect this DOCX for formatting problems"
+      "Inspect this DOCX for formatting problems",
+      "Validate this document against the selected profile"
     ],
     "brandColor": "#1E5B52",
     "composerIcon": "./assets/icon.svg",

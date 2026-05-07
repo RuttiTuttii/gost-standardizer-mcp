@@ -242,13 +242,13 @@ def _extract_gost_number(text: str) -> str:
     return match.group(0) if match else ""
 
 
-def _score_gost_title(query: str, title: str) -> tuple[int, int, int]:
+def _score_gost_title(query: str, title: str) -> dict[str, Any]:
     query_norm = _normalize_gost_query(query)
     title_norm = _normalize_gost_query(title)
     query_num = _extract_gost_number(query_norm)
     title_num = _extract_gost_number(title_norm)
     if not query_norm and not query_num:
-        return (0, 0, 0)
+        return {"exact": False, "number_hint": False, "partial": 0, "confidence": 0.0}
     exact = 0
     if query_num and title_num:
         if title_num == query_num or title_num.startswith(f"{query_num}-") or query_num.startswith(f"{title_num}-"):
@@ -261,7 +261,19 @@ def _score_gost_title(query: str, title: str) -> tuple[int, int, int]:
     partial = sum(1 for part in parts if part in title_norm)
     if not partial and query_num and title_num and query_num in title_num:
         partial = 1 if not exact else partial
-    return (exact, number_hint, partial)
+    confidence = 0.0
+    if exact:
+        confidence += 0.65
+    if number_hint:
+        confidence += 0.2
+    confidence += min(partial, 4) * 0.05
+    confidence = min(confidence, 1.0)
+    return {
+        "exact": bool(exact),
+        "number_hint": bool(number_hint),
+        "partial": partial,
+        "confidence": confidence,
+    }
 
 
 def ensure_main_index(cache: dict[str, Any] | None = None, *, refresh: bool = False) -> tuple[dict[str, Any], str]:
@@ -362,6 +374,7 @@ def list_topics(*, refresh: bool = False) -> dict[str, Any]:
             "path": str(CACHE_PATH),
             "state": "hit" if origin == "cache" else "refreshed",
             "fetched_at": cache.get("fetched_at"),
+            "updated_at": cache.get("fetched_at"),
         },
         "topics": categories,
         "note": "records with origin=cache came from the local cache; origin=source were fetched from the нормативный источник",
@@ -395,6 +408,7 @@ def get_current_topics(
                 "path": str(CACHE_PATH),
                 "state": "hit" if main_origin == "cache" else "refreshed",
                 "fetched_at": cache.get("fetched_at"),
+                "updated_at": cache.get("fetched_at"),
             },
             "topics": topics,
             "note": "origin=cache means the topic came from the local cache; origin=source means it was fetched from the нормативный source",
@@ -410,6 +424,7 @@ def get_current_topics(
                 "path": str(CACHE_PATH),
                 "state": "hit" if main_origin == "cache" else "refreshed",
                 "fetched_at": cache.get("fetched_at"),
+                "updated_at": cache.get("fetched_at"),
             },
             "topics": [],
             "note": "no matching category was found in cache or source",
@@ -438,6 +453,7 @@ def get_current_topics(
             "path": str(CACHE_PATH),
             "state": "hit" if page_origin == "cache" else "refreshed",
             "fetched_at": cache.get("fetched_at"),
+            "updated_at": cache.get("fetched_at"),
         },
         "topics": docs[:limit],
         "note": "origin=cache means the topic came from the local cache; origin=source means it was fetched from the нормативный source",
@@ -502,9 +518,21 @@ def search_catalog(
             )
             for doc in page_data["docs"]:
                 hay = f'{doc["title"]} {doc["category"]}'.lower()
-                if query_norm in hay:
+                score = _score_gost_title(query, doc["title"])
+                text_match = bool(query_norm and query_norm in hay)
+                if score["exact"] or score["number_hint"] or score["partial"] or text_match:
                     record = dict(doc)
                     record["origin"] = origin
+                    confidence = score["confidence"]
+                    if text_match and confidence == 0.0:
+                        confidence = min(0.45 + min(len(query_norm), 40) / 200, 0.85)
+                    record["confidence"] = round(confidence, 3)
+                    record["match"] = {
+                        "exact": score["exact"],
+                        "number_hint": score["number_hint"],
+                        "partial": score["partial"],
+                        "text": text_match,
+                    }
                     document_hits.append(record)
                     if len(document_hits) >= limit:
                         break
@@ -522,6 +550,7 @@ def search_catalog(
             "path": str(CACHE_PATH),
             "state": "hit" if main_origin == "cache" else "refreshed",
             "fetched_at": cache.get("fetched_at"),
+            "updated_at": cache.get("fetched_at"),
         },
         "categories": category_hits,
         "documents": document_hits,
@@ -570,7 +599,7 @@ def find_current_gost(
             )
             for doc in page_data["docs"]:
                 score = _score_gost_title(normalized_query, doc["title"])
-                if score[0] or score[1] or score[2]:
+                if score["exact"] or score["number_hint"] or score["partial"]:
                     documents.append(
                         {
                             "title": doc["title"],
@@ -578,10 +607,11 @@ def find_current_gost(
                             "category": doc["category"],
                             "page": doc["page"],
                             "origin": origin,
+                            "confidence": score["confidence"],
                             "match": {
-                                "exact": bool(score[0]),
-                                "number_hint": bool(score[1]),
-                                "partial": score[2],
+                                "exact": score["exact"],
+                                "number_hint": score["number_hint"],
+                                "partial": score["partial"],
                             },
                         }
                     )
@@ -602,6 +632,7 @@ def find_current_gost(
             "path": str(CACHE_PATH),
             "state": "hit" if main_origin == "cache" else "refreshed",
             "fetched_at": cache.get("fetched_at"),
+            "updated_at": cache.get("fetched_at"),
         },
         "categories": category_records,
         "documents": documents,
@@ -643,6 +674,7 @@ def refresh_catalog(*, category: str | None = None, max_pages: int = DEFAULT_PAG
             "path": str(CACHE_PATH),
             "state": "refreshed",
             "fetched_at": cache.get("fetched_at"),
+            "updated_at": cache.get("fetched_at"),
         },
         "categories": refreshed_categories,
         "pages_refreshed": pages_refreshed,
