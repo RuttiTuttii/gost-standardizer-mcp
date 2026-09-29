@@ -217,10 +217,9 @@ class GostStandardizerTests(unittest.TestCase):
         list_req = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
         list_res = mcp_server._dispatch(list_req)
         tools = [t["name"] for t in list_res["result"]["tools"]]
-        self.assertEqual(len(tools), 15)
-
-
-
+        self.assertEqual(len(tools), 17)
+        self.assertIn("render_gost_typst", tools)
+        self.assertIn("compile_typst", tools)
         self.assertIn("convert_html_to_markdown", tools)
         self.assertIn("fetch_norm_markdown", tools)
         self.assertIn("find_current_gost", tools)

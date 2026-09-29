@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from typing import Any, Callable
 
 from gost_standardizer.catalog import (
@@ -11,7 +12,12 @@ from gost_standardizer.catalog import (
     search_catalog,
 )
 from gost_standardizer.catalog.cache import cache_manager
-from gost_standardizer.converter import convert_html_to_markdown
+from gost_standardizer.converter import (
+    compile_typst,
+    convert_html_to_markdown,
+    generate_gost_typst,
+    markdown_to_gost_typst,
+)
 from gost_standardizer.core import (
     compare_to_preset,
     explain_preset,
@@ -32,12 +38,15 @@ PROTOCOL_VERSION = "2024-11-05"
 logger = logging.getLogger(__name__)
 
 
-def _tool_schema(parameters: dict[str, Any]) -> dict[str, Any]:
-    return {
+def _tool_schema(parameters: dict[str, Any], *, required: list[str] | None = None) -> dict[str, Any]:
+    schema: dict[str, Any] = {
         "type": "object",
         "properties": parameters,
         "additionalProperties": False,
     }
+    if required:
+        schema["required"] = required
+    return schema
 
 
 TOOLS = [
@@ -233,6 +242,36 @@ TOOLS = [
             }
         ),
     },
+    {
+        "name": "render_gost_typst",
+        "description": "Generate a GOST-compliant Typst (.typ) document from Markdown or preset options.",
+        "inputSchema": _tool_schema(
+            {
+                "preset": {
+                    "type": "string",
+                    "enum": ["report", "office", "technical", "legacy-college"],
+                    "default": "report",
+                },
+                "markdown": {"type": "string", "description": "Optional Markdown text to convert to Typst body."},
+                "title": {"type": "string", "description": "Document title."},
+                "author": {"type": "string", "description": "Document author."},
+                "organization": {"type": "string", "description": "University, agency, or organization."},
+                "year": {"type": "integer", "description": "Year of document."},
+                "output_path": {"type": "string", "description": "Optional destination path for the .typ file."},
+            }
+        ),
+    },
+    {
+        "name": "compile_typst",
+        "description": "Compile Typst markup code or a .typ file into a PDF document using the local Typst binary.",
+        "inputSchema": _tool_schema(
+            {
+                "input": {"type": "string", "description": "Path to a .typ file or raw Typst code string."},
+                "output_path": {"type": "string", "description": "Optional path for the compiled output PDF."},
+            },
+            required=["input"],
+        ),
+    },
 ]
 
 
@@ -347,7 +386,8 @@ def handle_tools_call(params: dict[str, Any]) -> dict[str, Any]:
             sample_size=arguments.get("sample_size", 8),
         )
     if name == "explain_preset":
-        return _call_tool(name, explain_preset, name=arguments.get("preset"))
+        preset_val = arguments.get("preset") or arguments.get("name") or arguments.get("path_or_preset")
+        return _call_tool(name, explain_preset, path_or_preset=preset_val, preset_name=preset_val, name=preset_val)
     if name == "get_meganorm_topics":
         return _call_tool(
             name,
@@ -387,6 +427,40 @@ def handle_tools_call(params: dict[str, Any]) -> dict[str, Any]:
         if "query_or_url" not in arguments:
             return _result("Missing required argument 'query_or_url'", is_error=True)
         return _call_tool(name, fetch_norm_markdown, query_or_url=arguments["query_or_url"])
+    if name == "render_gost_typst":
+        markdown = arguments.get("markdown")
+        if markdown:
+            typst_code = markdown_to_gost_typst(
+                markdown,
+                preset_or_name=arguments.get("preset", "report"),
+                title=arguments.get("title"),
+                author=arguments.get("author"),
+                organization=arguments.get("organization"),
+                year=arguments.get("year"),
+            )
+        else:
+            typst_code = generate_gost_typst(
+                preset_or_name=arguments.get("preset", "report"),
+                title=arguments.get("title"),
+                author=arguments.get("author"),
+                organization=arguments.get("organization"),
+                year=arguments.get("year"),
+            )
+        out_path = arguments.get("output_path")
+        if out_path:
+            p = Path(out_path).resolve()
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(typst_code, encoding="utf-8")
+            return _result(_serialize({"output_path": str(p), "status": "saved", "content": typst_code}))
+        return _result(typst_code)
+    if name == "compile_typst":
+        if "input" not in arguments:
+            return _result("Missing required argument 'input'", is_error=True)
+        res = compile_typst(
+            input_path_or_content=arguments["input"],
+            output_path=arguments.get("output_path"),
+        )
+        return _result(_serialize(res), is_error=not res.get("success", False))
 
     raise KeyError(f"Unknown tool: {name}")
 

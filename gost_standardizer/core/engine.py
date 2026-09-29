@@ -198,13 +198,18 @@ def detect_preset(path: str, preset_name: str | None = None) -> dict[str, Any]:
         }
 
 
-def explain_preset(path_or_preset: str | None = None, preset_name: str | None = None) -> dict[str, Any]:
+def explain_preset(
+    path_or_preset: str | None = None,
+    preset_name: str | None = None,
+    name: str | None = None,
+) -> dict[str, Any]:
+    target_preset = preset_name or name
     if path_or_preset and (Path(path_or_preset).exists() or path_or_preset.endswith((".docx", ".docm", ".doc"))):
         with open_document_source(path_or_preset) as (source, source_meta):
             document = Document(str(source))
             scores = preset_scores(document, source)
             guessed = max(scores, key=lambda k: scores[k]) if max(scores.values(), default=0) > 0 else "report"
-            selected = preset_name or guessed
+            selected = target_preset or guessed
             preset = resolve_preset(selected)
 
             stem = source.stem.lower()
@@ -226,14 +231,14 @@ def explain_preset(path_or_preset: str | None = None, preset_name: str | None = 
                 "path": str(source_meta["source_path"]),
                 "source_kind": source_meta["source_kind"],
                 "converted_from": source_meta.get("converted_from"),
-                "requested_preset": preset_name,
+                "requested_preset": target_preset,
                 "preset": asdict(preset),
                 "guessed_preset": guessed,
                 "scores": scores,
                 "signals": signals,
             }
 
-    preset = resolve_preset(path_or_preset or preset_name)
+    preset = resolve_preset(path_or_preset or target_preset)
     return {
         "key": preset.key,
         "title": preset.title,

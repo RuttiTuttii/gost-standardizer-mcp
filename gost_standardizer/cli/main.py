@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 from typing import Any
@@ -12,7 +13,12 @@ if str(REPO_ROOT) not in sys.path:
 
 from gost_standardizer.catalog import fetch_norm_markdown, find_current_gost
 
-from gost_standardizer.converter import convert_html_to_markdown
+from gost_standardizer.converter import (
+    compile_typst,
+    convert_html_to_markdown,
+    generate_gost_typst,
+    markdown_to_gost_typst,
+)
 from gost_standardizer.core import (
     explain_preset,
     inspect_document,
@@ -73,6 +79,20 @@ def main(argv: list[str] | None = None) -> int:
     # Command: presets / profiles
     subparsers.add_parser("presets", help="List built-in presets")
     subparsers.add_parser("profiles", help="List available profiles")
+
+    # Command: typst-render
+    p_typ_render = subparsers.add_parser("typst-render", help="Generate GOST Typst markup (.typ) from Markdown or template")
+    p_typ_render.add_argument("file_or_text", nargs="?", default=None, help="Markdown file path or raw string")
+    p_typ_render.add_argument("--preset", choices=["report", "office", "technical", "legacy-college"], default="report")
+    p_typ_render.add_argument("--title", default=None, help="Document title")
+    p_typ_render.add_argument("--author", default=None, help="Document author")
+    p_typ_render.add_argument("--organization", default=None, help="Organization or university")
+    p_typ_render.add_argument("-o", "--output", default=None, help="Output .typ file path")
+
+    # Command: typst-compile
+    p_typ_compile = subparsers.add_parser("typst-compile", help="Compile a .typ file or string to PDF using Typst")
+    p_typ_compile.add_argument("file_or_text", help=".typ file path or Typst code")
+    p_typ_compile.add_argument("-o", "--output", default=None, help="Output PDF file path")
 
     # Command: mcp
     subparsers.add_parser("mcp", help="Run MCP JSON-RPC server on stdio")
@@ -135,8 +155,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "convert-html":
         content = args.file_or_text
-        import os
-
         if os.path.exists(content):
             with open(content, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
@@ -150,6 +168,41 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "profiles":
         _print_json(list_profiles())
         return 0
+
+    if args.command == "typst-render":
+        raw = args.file_or_text
+        if raw and os.path.exists(raw):
+            with open(raw, "r", encoding="utf-8", errors="replace") as f:
+                raw = f.read()
+
+        if raw:
+            typst_code = markdown_to_gost_typst(
+                raw,
+                preset_or_name=args.preset,
+                title=args.title,
+                author=args.author,
+                organization=args.organization,
+            )
+        else:
+            typst_code = generate_gost_typst(
+                preset_or_name=args.preset,
+                title=args.title,
+                author=args.author,
+                organization=args.organization,
+            )
+
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(typst_code)
+            print(f"Saved Typst document to: {args.output}")
+        else:
+            print(typst_code)
+        return 0
+
+    if args.command == "typst-compile":
+        res = compile_typst(args.file_or_text, output_path=args.output)
+        _print_json(res)
+        return 0 if res.get("success") else 1
 
     if args.command == "mcp":
         return run_mcp_server()

@@ -10,7 +10,13 @@ from gost_standardizer.catalog import (
     get_current_topics,
     search_catalog,
 )
-from gost_standardizer.converter import convert_html_to_markdown
+from gost_standardizer.converter import (
+    compile_typst,
+    convert_html_to_markdown,
+    find_typst_binary,
+    generate_gost_typst,
+    markdown_to_gost_typst,
+)
 from gost_standardizer.core import (
     BUILTIN_PROFILES,
     PRESETS,
@@ -81,12 +87,15 @@ __all__ = [
     "cache_manager",
     "classify_paragraph",
     "compare_to_preset",
+    "compile_typst",
     "convert_html_to_markdown",
     "convert_legacy_doc",
     "detect_preset",
     "explain_preset",
     "fetch_norm_markdown",
     "find_current_gost",
+    "find_typst_binary",
+    "generate_gost_typst",
     "get_current_topics",
     "inspect_document",
     "list_presets",
@@ -94,6 +103,7 @@ __all__ = [
     "load_profile",
     "main",
     "make_output_path",
+    "markdown_to_gost_typst",
 
     "normalize_gost_number",
     "open_document_source",

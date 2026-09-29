@@ -8,3 +8,5 @@ dist/
 build/
 *.docx
 !plugins/gost-standardizer/assets/*.svg
+graphify-out/
+.coverage
