@@ -17,7 +17,8 @@ from docx.shared import Mm, Pt
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
+sys.path.insert(1, str(ROOT / "scripts"))
 
 import gost_standardizer  # noqa: E402
 import mcp_server  # noqa: E402
@@ -216,7 +217,14 @@ class GostStandardizerTests(unittest.TestCase):
         list_req = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
         list_res = mcp_server._dispatch(list_req)
         tools = [t["name"] for t in list_res["result"]["tools"]]
-        self.assertEqual(len(tools), 13)
+        self.assertEqual(len(tools), 15)
+
+
+
+        self.assertIn("convert_html_to_markdown", tools)
+        self.assertIn("fetch_norm_markdown", tools)
+        self.assertIn("find_current_gost", tools)
+
 
         # test load_profile and save_profile via MCP without argument collisions
         with tempfile.TemporaryDirectory() as td:
@@ -271,5 +279,105 @@ class GostStandardizerTests(unittest.TestCase):
                 sys.stdout = old_stdout
 
 
+    def test_gost_7_0_97_status_verification(self) -> None:
+        # Check active 2025 standard
+        res_2025 = gost_standardizer.find_current_gost("ГОСТ Р 7.0.97-2025")
+        self.assertTrue(res_2025["status_summary"]["found"])
+        self.assertEqual(res_2025["status_summary"]["status"], "действующий")
+        self.assertTrue(res_2025["status_summary"]["is_active"])
+        self.assertEqual(res_2025["primary_document"]["replaces"], "ГОСТ Р 7.0.97-2016")
+
+        # Check superseded 2016 standard
+        res_2016 = gost_standardizer.find_current_gost("7.0.97-2016")
+        self.assertTrue(res_2016["status_summary"]["found"])
+        self.assertEqual(res_2016["status_summary"]["status"], "заменён")
+        self.assertFalse(res_2016["status_summary"]["is_active"])
+        self.assertEqual(res_2016["primary_document"]["replaced_by"], "ГОСТ Р 7.0.97-2025")
+        self.assertIn("active_replacement", res_2016["primary_document"])
+        self.assertEqual(
+            res_2016["primary_document"]["active_replacement"]["status"], "действующий"
+        )
+
+    def test_html_to_markdown_converter(self) -> None:
+        html = "<h1>Заголовок</h1><p>Текст с <b>жирным</b> и <i>курсивом</i>.</p><table><tr><th>Колонка</th></tr><tr><td>Данные</td></tr></table>"
+        md = gost_standardizer.convert_html_to_markdown(html)
+        self.assertIn("# Заголовок", md)
+        self.assertIn("**жирным**", md)
+        self.assertIn("*курсивом*", md)
+        self.assertIn("Колонка", md)
+
+        # Test fallback parser explicitly
+        from gost_standardizer.converter import html_markdown
+        old_native = html_markdown._native_h2m
+        try:
+            html_markdown._native_h2m = None
+            md_fallback = gost_standardizer.convert_html_to_markdown(html)
+            self.assertIn("# Заголовок", md_fallback)
+            self.assertIn("**жирным**", md_fallback)
+            self.assertIn("Колонка", md_fallback)
+        finally:
+            html_markdown._native_h2m = old_native
+
+    def test_universal_stdio_transport(self) -> None:
+        from gost_standardizer.server.transport import StdioTransport
+
+        # 1. Newline JSON framing
+        newline_input = b'{"jsonrpc": "2.0", "id": 1, "method": "test"}\n'
+        out_buf1 = io.BytesIO()
+        transport1 = StdioTransport(stdin=io.BytesIO(newline_input), stdout=out_buf1)
+        msg1 = transport1.read_message()
+        self.assertIsNotNone(msg1)
+        self.assertEqual(msg1["method"], "test")
+        self.assertFalse(transport1.is_framed)
+        transport1.send_message({"jsonrpc": "2.0", "id": 1, "result": "ok"})
+        self.assertTrue(out_buf1.getvalue().endswith(b"\n"))
+        self.assertNotIn(b"Content-Length", out_buf1.getvalue())
+
+        # 2. Content-Length header framing
+        body = b'{"jsonrpc": "2.0", "id": 2, "method": "test2"}'
+        header_input = b"Content-Length: " + str(len(body)).encode("ascii") + b"\r\n\r\n" + body
+        out_buf2 = io.BytesIO()
+        transport2 = StdioTransport(stdin=io.BytesIO(header_input), stdout=out_buf2)
+        msg2 = transport2.read_message()
+        self.assertIsNotNone(msg2)
+        self.assertEqual(msg2["method"], "test2")
+        self.assertTrue(transport2.is_framed)
+        transport2.send_message({"jsonrpc": "2.0", "id": 2, "result": "ok"})
+        self.assertIn(b"Content-Length:", out_buf2.getvalue())
+
+
+    def test_mcp_find_gost_and_convert_html_tools(self) -> None:
+        # Test find_current_gost via MCP
+        req = {
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "tools/call",
+            "params": {
+                "name": "find_current_gost",
+                "arguments": {"query": "7.0.97-2025"},
+            },
+        }
+        res = mcp_server._dispatch(req)
+        self.assertFalse(res["result"].get("isError", False))
+        content = json.loads(res["result"]["content"][0]["text"])
+        self.assertEqual(content["status_summary"]["status"], "действующий")
+        self.assertTrue(content["status_summary"]["is_active"])
+
+        # Test convert_html_to_markdown via MCP
+        html_req = {
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "tools/call",
+            "params": {
+                "name": "convert_html_to_markdown",
+                "arguments": {"html": "<h2>ГОСТ Р 7.0.97</h2><p>Организационно-распорядительная документация</p>"},
+            },
+        }
+        html_res = mcp_server._dispatch(html_req)
+        self.assertFalse(html_res["result"].get("isError", False))
+        self.assertIn("## ГОСТ Р 7.0.97", html_res["result"]["content"][0]["text"])
+
+
 if __name__ == "__main__":
     unittest.main()
+
