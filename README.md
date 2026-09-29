@@ -151,6 +151,30 @@ python scripts/mcp_server.py
 
 `.mcp.json` уже указывает на этот вход.
 
+## запуск cli
+
+инструмент также можно вызывать напрямую из консоли:
+
+```bash
+# просмотр доступных пресетов
+python scripts/gost_standardizer.py presets
+
+# анализ документа
+python scripts/gost_standardizer.py inspect document.docx
+
+# валидация по ГОСТ
+python scripts/gost_standardizer.py validate document.docx --preset report
+
+# стандартизация в новый файл
+python scripts/gost_standardizer.py standardize document.docx -o output.docx
+```
+
+## запуск тестов
+
+```bash
+python -m unittest discover tests/ -v
+```
+
 ## meganorm
 
 источник берётся отсюда:

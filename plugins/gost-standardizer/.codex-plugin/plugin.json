@@ -1,14 +1,13 @@
 {
   "name": "gost-standardizer",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Local MCP plugin for inspecting, validating, and standardizing Word documents with GOST-style profiles.",
   "author": {
-    "name": "@glutinosa",
-    "email": "glutinosa@example.com",
-    "url": "https://github.com/glutinosa"
+    "name": "RuttiTuttii",
+    "url": "https://github.com/RuttiTuttii"
   },
-  "homepage": "https://github.com/glutinosa/gost-standardizer",
-  "repository": "https://github.com/glutinosa/gost-standardizer",
+  "homepage": "https://github.com/RuttiTuttii/gost-standardizer-mcp",
+  "repository": "https://github.com/RuttiTuttii/gost-standardizer-mcp",
   "license": "MIT",
   "keywords": [
     "gost",
@@ -22,15 +21,15 @@
     "displayName": "GOST Standardizer",
     "shortDescription": "Turn messy Word files into GOST-style documents.",
     "longDescription": "A local MCP plugin that inspects DOCX files, applies Russian GOST-inspired layout rules, and exports a cleaned-up .docx with consistent typography and page setup.",
-    "developerName": "@glutinosa",
+    "developerName": "RuttiTuttii",
     "category": "Productivity",
     "capabilities": [
       "Interactive",
       "Write"
     ],
-    "websiteURL": "https://github.com/glutinosa/gost-standardizer",
-    "privacyPolicyURL": "https://github.com/glutinosa/gost-standardizer/blob/main/privacy.md",
-    "termsOfServiceURL": "https://github.com/glutinosa/gost-standardizer/blob/main/terms.md",
+    "websiteURL": "https://github.com/RuttiTuttii/gost-standardizer-mcp",
+    "privacyPolicyURL": "https://github.com/RuttiTuttii/gost-standardizer-mcp/blob/master/privacy.md",
+    "termsOfServiceURL": "https://github.com/RuttiTuttii/gost-standardizer-mcp/blob/master/terms.md",
     "defaultPrompt": [
       "Standardize this Word document to GOST style",
       "Inspect this DOCX for formatting problems",

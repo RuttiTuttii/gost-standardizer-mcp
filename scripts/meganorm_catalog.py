@@ -6,7 +6,7 @@ from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 import json
@@ -16,6 +16,7 @@ import re
 BASE_URL = "https://meganorm.ru/mega_doc/norm/norm.html"
 ROOT_DIR = Path(__file__).resolve().parents[1]
 CACHE_PATH = ROOT_DIR / ".cache" / "meganorm" / "catalog.json"
+SEED_PATH = ROOT_DIR / "data" / "catalog_seed.json"
 DEFAULT_TIMEOUT = 30
 DEFAULT_PAGE_LIMIT = 5
 DEFAULT_RESULT_LIMIT = 25
@@ -141,12 +142,17 @@ def _empty_cache() -> dict[str, Any]:
 
 
 def load_cache() -> dict[str, Any]:
-    if not CACHE_PATH.exists():
-        return _empty_cache()
-    try:
-        return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return _empty_cache()
+    if CACHE_PATH.exists():
+        try:
+            return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    if SEED_PATH.exists():
+        try:
+            return json.loads(SEED_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return _empty_cache()
 
 
 def save_cache(cache: dict[str, Any]) -> None:
@@ -280,12 +286,17 @@ def ensure_main_index(cache: dict[str, Any] | None = None, *, refresh: bool = Fa
     cache = cache or load_cache()
     if cache.get("categories") and not refresh:
         return cache, "cache"
-    main = parse_main_index(_fetch_html(BASE_URL))
-    cache["source_url"] = main["source_url"]
-    cache["fetched_at"] = main["fetched_at"]
-    cache["categories"] = main["categories"]
-    save_cache(cache)
-    return cache, "source"
+    try:
+        main = parse_main_index(_fetch_html(BASE_URL))
+        cache["source_url"] = main["source_url"]
+        cache["fetched_at"] = main["fetched_at"]
+        cache["categories"] = main["categories"]
+        save_cache(cache)
+        return cache, "source"
+    except (URLError, TimeoutError, OSError):
+        if cache.get("categories"):
+            return cache, "cache"
+        raise
 
 
 def _resolve_category_matches(categories: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
@@ -335,6 +346,10 @@ def ensure_category_page(
         if exc.code == 404:
             return cache, "missing"
         raise
+    except (URLError, TimeoutError, OSError):
+        if page_key in pages:
+            return cache, "cache"
+        return cache, "missing"
     parsed = parse_category_page(html, page_url, category["title"])
     pages[page_key] = parsed
     save_cache(cache)

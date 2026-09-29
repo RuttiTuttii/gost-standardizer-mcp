@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 240" role="img" aria-label="GOST Standardizer logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F6F1E8"/>
+      <stop offset="100%" stop-color="#EEE7D8"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1E5B52"/>
+      <stop offset="100%" stop-color="#0F2E36"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="860" height="240" rx="28" fill="url(#bg)"/>
+
+  <g transform="translate(32 34)">
+    <rect width="172" height="172" rx="28" fill="url(#mark)"/>
+    <rect x="34" y="28" width="104" height="116" rx="16" fill="#F8F3E7"/>
+    <rect x="50" y="50" width="72" height="10" rx="5" fill="#1E5B52"/>
+    <rect x="50" y="73" width="58" height="8" rx="4" fill="#9BB8B2"/>
+    <rect x="50" y="92" width="68" height="8" rx="4" fill="#9BB8B2"/>
+    <rect x="50" y="111" width="50" height="8" rx="4" fill="#9BB8B2"/>
+    <path d="M138 100l12 12 22-26" fill="none" stroke="#A8D0C8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M34 28h22c4 0 8 4 8 8v14c0 4-4 8-8 8H34z" fill="#DDEAE6"/>
+  </g>
+
+  <text x="246" y="96" fill="#0E2230" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="700" letter-spacing="0.2">
+    GOST Standardizer
+  </text>
+  <text x="246" y="144" fill="#49625D" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="400">
+    DOCX inspector and formatter for russian document layouts
+  </text>
+</svg>

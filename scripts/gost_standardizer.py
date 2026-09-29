@@ -4,10 +4,12 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+import argparse
 import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 
 from docx import Document
@@ -53,16 +55,22 @@ SECTION_KEYWORDS = {
 
 
 HEADING_PATTERNS = [
+    re.compile(r"^(?:раздел|глава|часть|приложение)\s+[0-9a-zа-яёivx]+(?:\.[0-9a-zа-яё]+)*\.?\s*", re.I),
+    re.compile(r"^\d+\.\d+(?:\.\d+)*\.?\s+\S"),
+    re.compile(r"^\d+\.?\s+[А-ЯA-ZЁ]"),
     re.compile(r"^\d+(?:\.\d+)*\s+\S"),
     re.compile(
-        r"^(аннотация|содержание|введение|заключение|список литературы|список использованных источников|приложения?)$",
+        r"^(?:аннотация|содержание|введение|заключение|список литературы|список использованных источников|приложения?)$",
         re.I,
     ),
-    re.compile(r"^(техническое задание|пояснительная записка)$", re.I),
+    re.compile(r"^(?:техническое задание|пояснительная записка)$", re.I),
 ]
 
 LIST_PATTERNS = [
     re.compile(r"^[•\-–—]\s+\S"),
+    re.compile(r"^\(?\d+\)\s+\S"),
+    re.compile(r"^\d+\.\s+[а-яa-zё]"),
+    re.compile(r"^[а-яa-zё]\)\s+\S"),
     re.compile(r"^\(?\d+[.)]\s+\S"),
     re.compile(r"^\d+\)\s+\S"),
 ]
@@ -481,6 +489,12 @@ def open_document_source(raw_path: str, base_dir: Path | None = None):
         }
 
 
+def _clear_theme_fonts(r_fonts) -> None:
+    for key in list(r_fonts.attrib.keys()):
+        if "theme" in key.lower():
+            del r_fonts.attrib[key]
+
+
 def _set_r_fonts(run, font_name: str) -> None:
     r_pr = run._element.get_or_add_rPr()
     r_fonts = r_pr.get_or_add_rFonts()
@@ -488,6 +502,7 @@ def _set_r_fonts(run, font_name: str) -> None:
     r_fonts.set(qn("w:hAnsi"), font_name)
     r_fonts.set(qn("w:cs"), font_name)
     r_fonts.set(qn("w:eastAsia"), font_name)
+    _clear_theme_fonts(r_fonts)
 
 
 def _set_style_font(style, font_name: str, font_size_pt: int | None = None, bold: bool | None = None) -> None:
@@ -505,6 +520,7 @@ def _set_style_font(style, font_name: str, font_size_pt: int | None = None, bold
         r_fonts.set(qn("w:hAnsi"), font_name)
         r_fonts.set(qn("w:cs"), font_name)
         r_fonts.set(qn("w:eastAsia"), font_name)
+        _clear_theme_fonts(r_fonts)
 
 
 def _normalize_text(text: str) -> str:
@@ -540,17 +556,18 @@ def _classify_paragraph(paragraph, index: int, non_empty_index: int) -> str:
         return "heading"
     if "caption" in style_name:
         return "caption"
+    if any(pattern.match(text) or pattern.match(lowered) for pattern in HEADING_PATTERNS):
+        if len(text) <= 160 and not text.rstrip().endswith((";", ",")):
+            return "heading"
     if _has_numbering(paragraph):
         return "list"
     if any(pattern.match(text) for pattern in LIST_PATTERNS):
         return "list"
-    if any(pattern.match(lowered) for pattern in HEADING_PATTERNS):
-        return "heading"
     if non_empty_index == 1 and len(text) <= 180 and not text.endswith((".", "!", "?")):
         return "title"
-    if paragraph.alignment == WD_ALIGN_PARAGRAPH.CENTER and len(text) <= 180:
+    if non_empty_index <= 3 and paragraph.alignment == WD_ALIGN_PARAGRAPH.CENTER and len(text) <= 180 and not text.endswith((".", "!", "?")):
         return "title"
-    if len(text) <= 72 and lowered.isupper():
+    if len(text) <= 72 and lowered.isupper() and not text.endswith((".", ";", ",")):
         return "heading"
     if lowered.startswith(("рисунок ", "таблица ")):
         return "caption"
@@ -1276,7 +1293,7 @@ def _apply_paragraph_format(paragraph, kind: str, preset: Preset, inside_table: 
     fmt.line_spacing = preset.body_line_spacing
 
 
-def _apply_run_format(run, kind: str, preset: Preset) -> None:
+def _apply_run_format(run, kind: str, preset: Preset, *, preserve_inline_styles: bool = False) -> None:
     if not run.text:
         return
 
@@ -1307,8 +1324,9 @@ def _apply_run_format(run, kind: str, preset: Preset) -> None:
     size = preset.table_font_size_pt if kind == "list" else preset.body_font_size_pt
     run.font.name = preset.body_font_name
     run.font.size = Pt(size)
-    run.font.bold = False
-    run.font.italic = False
+    if not preserve_inline_styles:
+        run.font.bold = False
+        run.font.italic = False
     _set_r_fonts(run, preset.body_font_name)
 
 
@@ -1422,13 +1440,22 @@ def standardize_document(
             paragraph_actions[kind] = paragraph_actions.get(kind, 0) + 1
             if fix_paragraphs:
                 _apply_paragraph_format(paragraph, kind, preset, inside_table=False)
+                non_empty_runs = [r for r in paragraph.runs if _normalize_text(r.text)]
+                has_mixed_styles = False
+                if not aggressive and len(non_empty_runs) > 1:
+                    has_bold = any(r.font.bold for r in non_empty_runs)
+                    has_regular = any(r.font.bold is False or r.font.bold is None for r in non_empty_runs)
+                    has_italic = any(r.font.italic for r in non_empty_runs)
+                    has_non_italic = any(r.font.italic is False or r.font.italic is None for r in non_empty_runs)
+                    has_mixed_styles = (has_bold and has_regular) or (has_italic and has_non_italic)
+
                 for run in paragraph.runs:
-                    _apply_run_format(run, kind, preset)
+                    _apply_run_format(run, kind, preset, preserve_inline_styles=has_mixed_styles)
 
         table_paragraphs = 0
         if fix_tables:
             for table in document.tables:
-                for row in table.rows:
+                for row_idx, row in enumerate(table.rows):
                     for cell in row.cells:
                         for paragraph in cell.paragraphs:
                             table_paragraphs += 1
@@ -1436,17 +1463,22 @@ def standardize_document(
                             for run in paragraph.runs:
                                 run.font.name = preset.body_font_name
                                 run.font.size = Pt(preset.table_font_size_pt)
-                                run.font.bold = False
-                                run.font.italic = False
+                                if aggressive or row_idx > 0:
+                                    run.font.bold = False
+                                    run.font.italic = False
                                 _set_r_fonts(run, preset.body_font_name)
 
         if source.suffix.lower() == ".docm":
             for section in document.sections:
                 section.different_first_page_header_footer = False
 
-        output = make_output_path(source, output_path)
-        if output.exists() and not overwrite:
-            output = output.with_name(f"{output.stem}_v2{output.suffix}")
+        original_source = Path(source_meta["source_path"])
+        output = make_output_path(original_source, output_path)
+        counter = 2
+        base_stem = output.stem
+        while output.exists() and not overwrite:
+            output = output.with_name(f"{base_stem}_v{counter}{output.suffix}")
+            counter += 1
         output.parent.mkdir(parents=True, exist_ok=True)
         document.save(str(output))
 
@@ -1476,3 +1508,65 @@ def standardize_document(
 
 def render_report(result: dict[str, Any]) -> str:
     return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="GOST Standardizer for Word documents")
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
+
+    subparsers.add_parser("presets", help="List available built-in presets")
+    subparsers.add_parser("profiles", help="List available profiles")
+
+    p_inspect = subparsers.add_parser("inspect", help="Inspect a document and suggest preset")
+    p_inspect.add_argument("path", help="Path to .docx / .docm / .doc document")
+    p_inspect.add_argument("--sample-size", type=int, default=8, help="Number of sample paragraphs")
+
+    p_validate = subparsers.add_parser("validate", help="Validate document against a preset or profile")
+    p_validate.add_argument("path", help="Path to document")
+    p_validate.add_argument("--preset", default="report", help="Preset name (report, office, technical, legacy-college)")
+    p_validate.add_argument("--profile", default=None, help="Profile name or path")
+    p_validate.add_argument("--aggressive", action="store_true", help="Aggressive heading classification")
+
+    p_compare = subparsers.add_parser("compare", help="Compare document formatting to a preset")
+    p_compare.add_argument("path", help="Path to document")
+    p_compare.add_argument("--preset", default="report", help="Preset name")
+    p_compare.add_argument("--profile", default=None, help="Profile name or path")
+    p_compare.add_argument("--aggressive", action="store_true", help="Aggressive classification")
+
+    p_std = subparsers.add_parser("standardize", help="Standardize document to GOST formatting")
+    p_std.add_argument("path", help="Path to document")
+    p_std.add_argument("-o", "--output", default=None, help="Output destination path")
+    p_std.add_argument("--preset", default="report", help="Preset name")
+    p_std.add_argument("--profile", default=None, help="Profile name or path")
+    p_std.add_argument("--overwrite", action="store_true", help="Overwrite existing output file")
+    p_std.add_argument("--aggressive", action="store_true", help="Aggressive classification")
+
+    args = parser.parse_args(argv)
+    if not args.command:
+        parser.print_help()
+        return 0
+
+    if args.command == "presets":
+        print(render_report(list_presets()))
+        return 0
+    if args.command == "profiles":
+        print(render_report(list_profiles()))
+        return 0
+    if args.command == "inspect":
+        print(render_report(inspect_document(args.path, sample_size=args.sample_size)))
+        return 0
+    if args.command == "validate":
+        print(render_report(validate_document(args.path, preset_name=args.preset, profile_name=args.profile, aggressive=args.aggressive)))
+        return 0
+    if args.command == "compare":
+        print(render_report(compare_to_preset(args.path, preset_name=args.preset, profile_name=args.profile, aggressive=args.aggressive)))
+        return 0
+    if args.command == "standardize":
+        print(render_report(standardize_document(args.path, output_path=args.output, preset_name=args.preset, profile_name=args.profile, overwrite=args.overwrite, aggressive=args.aggressive)))
+        return 0
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

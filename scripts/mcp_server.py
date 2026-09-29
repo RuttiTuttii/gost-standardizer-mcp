@@ -19,7 +19,7 @@ from meganorm_catalog import find_current_gost, get_current_topics, refresh_cata
 
 
 SERVER_NAME = "gost-standardizer"
-SERVER_VERSION = "0.2.0"
+SERVER_VERSION = "0.2.1"
 PROTOCOL_VERSION = "2024-11-05"
 
 
@@ -392,11 +392,11 @@ def _tool_error(name: str, exc: Exception) -> dict[str, Any]:
     )
 
 
-def _call_tool(name: str, fn: Callable[..., Any], **kwargs: Any) -> dict[str, Any]:
+def _call_tool(tool_name: str, fn: Callable[..., Any], /, **kwargs: Any) -> dict[str, Any]:
     try:
         return _result(_serialize(fn(**kwargs)))
-    except (FileNotFoundError, ValueError, RuntimeError, KeyError) as exc:
-        return _tool_error(name, exc)
+    except (FileNotFoundError, ValueError, RuntimeError, KeyError, OSError) as exc:
+        return _tool_error(tool_name, exc)
 
 
 def _handle_tools_call(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -408,8 +408,12 @@ def _handle_tools_call(arguments: dict[str, Any]) -> dict[str, Any]:
     if name == "list_profiles":
         return _result(_serialize(list_profiles()))
     if name == "load_profile":
+        if "name" not in params:
+            return _tool_error(name or "load_profile", ValueError("Missing required parameter: 'name'"))
         return _call_tool(name, load_profile, name=params["name"])
     if name == "save_profile":
+        if "name" not in params:
+            return _tool_error(name or "save_profile", ValueError("Missing required parameter: 'name'"))
         return _call_tool(
             name,
             save_profile,
@@ -421,8 +425,12 @@ def _handle_tools_call(arguments: dict[str, Any]) -> dict[str, Any]:
             notes=params.get("notes"),
         )
     if name == "inspect_document":
+        if "path" not in params:
+            return _tool_error(name or "inspect_document", ValueError("Missing required parameter: 'path'"))
         return _call_tool(name, inspect_document, path=params["path"], sample_size=int(params.get("sample_size", 8)))
     if name == "explain_preset":
+        if "path" not in params:
+            return _tool_error(name or "explain_preset", ValueError("Missing required parameter: 'path'"))
         return _call_tool(
             name,
             explain_preset,
@@ -431,6 +439,8 @@ def _handle_tools_call(arguments: dict[str, Any]) -> dict[str, Any]:
             sample_size=int(params.get("sample_size", 8)),
         )
     if name == "validate_document":
+        if "path" not in params:
+            return _tool_error(name or "validate_document", ValueError("Missing required parameter: 'path'"))
         return _call_tool(
             name,
             validate_document,
@@ -441,6 +451,8 @@ def _handle_tools_call(arguments: dict[str, Any]) -> dict[str, Any]:
             sample_size=int(params.get("sample_size", 8)),
         )
     if name == "compare_to_preset":
+        if "path" not in params:
+            return _tool_error(name or "compare_to_preset", ValueError("Missing required parameter: 'path'"))
         return _call_tool(
             name,
             compare_to_preset,
@@ -451,6 +463,8 @@ def _handle_tools_call(arguments: dict[str, Any]) -> dict[str, Any]:
             sample_size=int(params.get("sample_size", 8)),
         )
     if name == "standardize_document":
+        if "path" not in params:
+            return _tool_error(name or "standardize_document", ValueError("Missing required parameter: 'path'"))
         return _call_tool(
             name,
             standardize_document,
@@ -473,6 +487,8 @@ def _handle_tools_call(arguments: dict[str, Any]) -> dict[str, Any]:
             max_pages=int(params.get("max_pages", 5)),
         )
     if name == "search_meganorm_catalog":
+        if "query" not in params:
+            return _tool_error(name or "search_meganorm_catalog", ValueError("Missing required parameter: 'query'"))
         return _call_tool(
             name,
             search_catalog,
@@ -492,6 +508,8 @@ def _handle_tools_call(arguments: dict[str, Any]) -> dict[str, Any]:
             refresh=bool(params.get("refresh", False)),
         )
     if name == "find_current_gost":
+        if "query" not in params:
+            return _tool_error(name or "find_current_gost", ValueError("Missing required parameter: 'query'"))
         return _call_tool(
             name,
             find_current_gost,
