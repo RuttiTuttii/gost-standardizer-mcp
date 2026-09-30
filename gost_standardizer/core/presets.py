@@ -76,7 +76,7 @@ PRESETS: dict[str, Preset] = {
     "technical": Preset(
         key="technical",
         title="GOST technical (ГОСТ 2.105-2019)",
-        description="Preset for technical docs, specs, and engineering notes.",
+        description="Preset for technical docs, specs, and engineering notes (TЗ, specs). Page geometry matches report per ESKD, differs in document type and keyword signals.",
         page_width_mm=210,
         page_height_mm=297,
         margin_left_mm=30,

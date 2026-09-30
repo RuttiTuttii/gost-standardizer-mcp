@@ -373,7 +373,7 @@ def validate_paragraphs(
                 )
             )
 
-        # Check runs fonts
+        # Check runs fonts, sizes and styles
         for run in paragraph.runs:
             rm = effective_run_metrics(run, paragraph)
             if rm["name"] and rm["name"].lower() != preset.body_font_name.lower():
@@ -385,6 +385,68 @@ def validate_paragraphs(
                     )
                 )
                 break
+            if not approx_equal(rm.get("size_pt"), expected.get("font_size_pt"), DEFAULT_FONT_TOLERANCE_PT):
+                issues.append(
+                    make_issue(
+                        "run.font.size.mismatch",
+                        f"Paragraph {index + 1} ({kind}) font size is {rm.get('size_pt')} pt, expected {expected.get('font_size_pt')} pt.",
+                        evidence={"index": index, "kind": kind, "actual": rm.get("size_pt")},
+                    )
+                )
+                break
+
+        # Check bold/italic expectations (skip body when not aggressive to preserve inline emphasis)
+        if kind in {"title", "heading", "caption"} or aggressive:
+            for run in paragraph.runs:
+                if not run.text:
+                    continue
+                rm = effective_run_metrics(run, paragraph)
+                exp_bold = expected.get("bold")
+                exp_italic = expected.get("italic")
+                if exp_bold is not None and rm.get("bold") is not None and rm.get("bold") != exp_bold:
+                    issues.append(
+                        make_issue(
+                            "run.font.style.mismatch",
+                            f"Paragraph {index + 1} ({kind}) bold mismatch: got {rm.get('bold')}, expected {exp_bold}.",
+                            evidence={"index": index, "kind": kind},
+                        )
+                    )
+                    break
+                if exp_italic is not None and rm.get("italic") is not None and rm.get("italic") != exp_italic:
+                    issues.append(
+                        make_issue(
+                            "run.font.style.mismatch",
+                            f"Paragraph {index + 1} ({kind}) italic mismatch: got {rm.get('italic')}, expected {exp_italic}.",
+                            evidence={"index": index, "kind": kind},
+                        )
+                    )
+                    break
+
+        # Check spacing and line spacing
+        if not approx_equal(actual.get("line_spacing"), expected.get("line_spacing"), 0.05):
+            issues.append(
+                make_issue(
+                    "paragraph.spacing.mismatch",
+                    f"Paragraph {index + 1} ({kind}) line spacing is {actual.get('line_spacing')}, expected {expected.get('line_spacing')}.",
+                    evidence={"index": index, "kind": kind},
+                )
+            )
+        elif not approx_equal(actual.get("space_before_pt"), expected.get("space_before_pt"), 0.6):
+            issues.append(
+                make_issue(
+                    "paragraph.spacing.mismatch",
+                    f"Paragraph {index + 1} ({kind}) space_before is {actual.get('space_before_pt')} pt, expected {expected.get('space_before_pt')} pt.",
+                    evidence={"index": index, "kind": kind},
+                )
+            )
+        elif not approx_equal(actual.get("space_after_pt"), expected.get("space_after_pt"), 0.6):
+            issues.append(
+                make_issue(
+                    "paragraph.spacing.mismatch",
+                    f"Paragraph {index + 1} ({kind}) space_after is {actual.get('space_after_pt')} pt, expected {expected.get('space_after_pt')} pt.",
+                    evidence={"index": index, "kind": kind},
+                )
+            )
 
     return issues, matches
 
